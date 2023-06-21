@@ -501,7 +501,7 @@ class Env:
 #NO ddpg ,AC now
 num_inputs = 4
 num_actions = 1 # NOTE 这里动作维度一减再减，说明前期的构思还是不成熟的 P
-num_hidden = 256
+num_hidden = 512
 '''#输出的联合动作
 Action Exeid  devtype1 devtype2   devid     afterHowlongsec   
 -1~1    many    #get from demxxxinput#          continue
@@ -510,6 +510,7 @@ inputs = layers.Input(shape=(1,22))
 #inputs2 = layers.Input(shape=(1,11))
 
 # Define the hidden layers
+#x = layers.Dense(256, activation='relu')(inputs)
 x = tf.keras.layers.Dense(256, activation='relu')(inputs)
 #x = tf.keras.layers.Dense(256, activation='relu')(x)
 
@@ -520,13 +521,17 @@ y = tf.keras.layers.Dense(256, activation='relu')(y)
 xy = tf.keras.layers.Concatenate()([x, y])
 xy = tf.keras.layers.Dense(256, activation='relu')(xy)"""
 common = layers.Dense(num_hidden, activation="relu")(x)
-action = layers.Dense(num_actions, activation="linear")(common)
+action = layers.Dense(num_actions, activation="relu")(common)
 critic = layers.Dense(1)(common)
 
 model = keras.Model(inputs=inputs, outputs=[action, critic])
-
-optimizer = keras.optimizers.Adam(learning_rate=0.01)
 huber_loss = keras.losses.Huber()
+optimizer = keras.optimizers.Adam(learning_rate=0.01)
+model.compile(loss=huber_loss, optimizer=optimizer)
+
+#model.compile(loss='mean_squared_error', optimizer='sgd')
+#optimizer = keras.optimizers.Adam(learning_rate=0.01)
+#huber_loss = keras.losses.Huber()
 
 action_probs_history = []
 critic_value_history = []
@@ -553,7 +558,7 @@ eps = np.finfo(np.float32).eps.item()  # Smallest number such that 1.0 + eps != 
 episode_rewards = []
 #./dataset/testset/','test0
 train_set_f=[]
-for i in range (0,50):
+for i in range (0,2):
    train_set_f.append('train'+str(i))
 #get train0~train50
 actionlist=[]
@@ -579,13 +584,12 @@ for episode in train_set_f:
             nowtime=step #(s)now
             outs, critic_value = model(state)
             outs=abs(np.squeeze(outs))
-            normolize_outs=outs/sum(outs)
+            normolize_outs=outs/np.sum(outs)
             #print('n__',normolize_outs) #↓这个也是维度，一样的
             sample_dim=np.random.choice(len(normolize_outs), p=normolize_outs)
             #概率输出我要选择的维度（2023年6月10日
             action_probs_history.append(tf.math.log(normolize_outs[sample_dim]))
             critic_value_history.append(critic_value[sample_dim,0])
-           
             #切片
             #get corresponding dem from state1
             #state1[sample_dim,0,:]
@@ -632,7 +636,7 @@ for episode in train_set_f:
             # The actor must be updated so that it predicts an action that leads to
             # high rewards (compared to critic's estimate) with high probability.
             diff = ret - value
-            actor_losses.append(-log_prob* diff)  # actor loss
+            actor_losses.append(-log_prob* ret)  # actor loss
 
             # The critic must be updated so that it predicts a better estimate of
             # the future rewards.
@@ -652,8 +656,9 @@ for episode in train_set_f:
     episode_rewards.append(episode_reward)
     # Print the episode reward
     print('Episode:', episode, 'Reward:', episode_reward)
+print(episode_rewards)
 
-model.save("model1.keras")
+model.save("model2.keras")
 
 
 '''
